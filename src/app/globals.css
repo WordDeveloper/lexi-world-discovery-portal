@@ -1,0 +1,74 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background:
+    radial-gradient(1200px 600px at 100% -10%, rgba(108, 74, 182, 0.08), transparent),
+    radial-gradient(1000px 500px at -10% 0%, rgba(46, 67, 116, 0.06), transparent),
+    #f7f6fb;
+  color: #1a1726;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Thin, elegant scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #d9d4ec transparent;
+}
+*::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+*::-webkit-scrollbar-thumb {
+  background: #d9d4ec;
+  border-radius: 999px;
+}
+
+/* Glass panel utility */
+.glass {
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+/* Focus ring */
+.focus-ring:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(108, 74, 182, 0.35);
+}
+
+/* Loading shimmer */
+.shimmer {
+  position: relative;
+  overflow: hidden;
+  background: #efecf7;
+}
+.shimmer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.6), transparent);
+  animation: shimmer 1.4s infinite;
+}
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
