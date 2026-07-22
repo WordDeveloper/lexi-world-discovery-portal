@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#2E4374" />
+  <title>Lexi World</title>
+  <meta name="description" content="Lexi World — a story-driven structured-literacy adventure. Every child is a Guardian." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Nunito:ital,wght@0,400;0,600;0,700;0,800;1,600&family=Lexend:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <!-- Single-page app root. Screens are mounted here by the router. -->
+  <div id="app" aria-live="polite"></div>
+
+  <!-- Global HUD layer (shown only in-game) -->
+  <div id="hud-layer"></div>
+
+  <!-- Overlay layer for modals, pause, toasts, celebration -->
+  <div id="overlay-layer"></div>
+
+  <!-- Live region for screen-reader announcements -->
+  <div id="sr-live" class="sr-only" aria-live="assertive"></div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
