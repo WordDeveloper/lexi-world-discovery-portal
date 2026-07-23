@@ -1,8 +1,10 @@
 /* Child profile create / select (S5). */
 import { el, button, toast } from "../ui/components.js";
+import { imgEl } from "../core/images.js";
 import { hideHUD } from "../ui/hud.js";
 import { state, addProfile, selectProfile } from "../core/state.js";
 import { avatarArt } from "../ui/art.js";
+import { CHAR } from "../data/scenes.js";
 import { go } from "../core/router.js";
 
 export function render() {
@@ -37,7 +39,7 @@ function renderList(list) {
   list.innerHTML = "";
   state.root.profiles.forEach((p) => {
     const card = el("button.card.pad-sm", { style: { textAlign: "center", cursor: "pointer", border: "1px solid var(--line)" } }, [
-      el("div", { style: { margin: "0 auto" } }, [avatarArt(p.avatar, 76)]),
+      el("div", { style: { margin: "0 auto" } }, [imgEl(CHAR.guardian_portrait, { style: { height: "88px" }, fallback: avatarArt(p.avatar, 76) })]),
       el("div.h3", { text: p.name }),
       el("div.muted", { style: { fontSize: ".82rem" }, text: p.reading.initiationDone ? `${Object.keys(p.shards).length}/20 realms` : "New Guardian" }),
     ]);

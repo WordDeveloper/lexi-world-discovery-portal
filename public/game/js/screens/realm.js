@@ -21,6 +21,9 @@ import { go } from "../core/router.js";
 let cv, ctx, W, H, horizon, raf, running;
 let realm, th, player, storyling, nodes, pathPts, activeNode, cleared, keys, markers;
 
+// perspective scale: things lower on screen (closer) are larger
+function depth(y) { return Math.max(0.62, Math.min(1.3, 0.66 + 0.6 * ((y - horizon) / (H - horizon)))); }
+
 export function render({ realmId }) {
   realm = realmById(realmId);
   th = themeFor(realm);

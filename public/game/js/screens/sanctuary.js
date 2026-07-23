@@ -7,8 +7,8 @@ import { state, markDay, shardCount } from "../core/state.js";
 import { awardXP, checkAchievements } from "../systems/progress.js";
 import { KEEPER_LINES } from "../data/story.js";
 import { REGION_COUNT, realmById } from "../data/realms.js";
-import { storyTreeArt, storylingArt } from "../ui/art.js";
-import { SCENES, storylingImg } from "../data/scenes.js";
+import { storyTreeArt, storylingArt, avatarArt } from "../ui/art.js";
+import { SCENES, storylingImg, CHAR } from "../data/scenes.js";
 import { go } from "../core/router.js";
 
 export function render() {
@@ -26,13 +26,20 @@ export function render() {
     ? KEEPER_LINES.welcomeBack(p.name, last.realmName)
     : `Welcome, ${p.name}. The Story Tree sleeps. Restore the Realms to wake it.`;
 
-  const comp = el("div", { style: { position: "absolute", right: "6%", bottom: "6%", zIndex: 2 } }, [
-    imgEl(storylingImg(p.storyling.stage), { style: { height: "120px" }, fallback: storylingArt(p.storyling.species, p.storyling.stage, 90) }),
+  const comp = el("div", { style: { position: "absolute", right: "5%", bottom: "5%", zIndex: 2 } }, [
+    imgEl(storylingImg(p.storyling.stage), { style: { height: "115px" }, fallback: storylingArt(p.storyling.species, p.storyling.stage, 90) }),
+  ]);
+  // the child's Guardian standing in the Sanctuary
+  const hero = el("div", { style: { position: "absolute", left: "5%", bottom: "4%", zIndex: 2 } }, [
+    imgEl(CHAR.guardian_idle, { style: { height: "180px" }, fallback: avatarArt(p.avatar, 120) }),
   ]);
 
   const keeper = el("div.panel", { style: { maxWidth: "560px", margin: "0 auto" } }, [
-    el("div.row", { style: { justifyContent: "space-between" } }, [
-      el("div.h3", { text: "🌳 The Keeper" }),
+    el("div.row", { style: { justifyContent: "space-between", alignItems: "center" } }, [
+      el("div.row", { style: { gap: "8px", alignItems: "center" } }, [
+        imgEl(CHAR.keeper_portrait, { style: { height: "44px", width: "44px", objectFit: "cover", borderRadius: "50%" }, fallback: el("span", { text: "🌳", style: { fontSize: "1.5rem" } }) }),
+        el("div.h3", { text: "The Keeper" }),
+      ]),
       hearButton(recap, { label: "Hear" }),
     ]),
     el("p", { style: { marginTop: "6px" }, text: recap }),
@@ -54,7 +61,7 @@ export function render() {
     el("p", { style: { color: "#fff", textShadow: "0 2px 10px rgba(0,0,0,.6)", fontWeight: 700 }, text: `Heart Shards restored: ${shardCount(p)} / ${REGION_COUNT}` }),
     primary, keeper, nav,
   ]);
-  const scr = bgScreen(SCENES.sanctuary, [content, comp], { scrim: 0.35, noCenter: true });
+  const scr = bgScreen(SCENES.sanctuary, [content, hero, comp], { scrim: 0.35, noCenter: true });
   return scr;
 }
 export function onMount() { autoSpeak("Welcome to the Sanctuary."); }

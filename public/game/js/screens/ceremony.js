@@ -4,8 +4,9 @@ import { hideHUD } from "../ui/hud.js";
 import { speak, sfx, stopSpeaking } from "../core/audio.js";
 import { state, save } from "../core/state.js";
 import { CEREMONY, STORYLINGS } from "../data/story.js";
-import { SCENES } from "../data/scenes.js";
+import { SCENES, storylingImg } from "../data/scenes.js";
 import { storylingArt, storyTreeArt } from "../ui/art.js";
+import { imgEl } from "../core/images.js";
 import { go } from "../core/router.js";
 
 let i = 0, chosen = null;
@@ -36,7 +37,7 @@ export function render() {
     bar.querySelector("i").style.width = ((i + 1) / CEREMONY.length) * 100 + "%";
     stage.innerHTML = "";
     if (i < 2) stage.appendChild(storyTreeArt(140, 0.6));
-    else { stage.appendChild(storylingArt(chosen.id, 0, 120)); if (i >= 2) sfx.open(); }
+    else { stage.appendChild(imgEl(storylingImg(0), { style: { height: "150px" }, fallback: storylingArt(chosen.id, 0, 120) })); if (i >= 2) sfx.open(); }
     speak(beat.text);
   }
   function next() {

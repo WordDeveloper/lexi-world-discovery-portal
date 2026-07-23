@@ -5,7 +5,7 @@ import { imgEl, loadImage } from "../core/images.js";
 import { showHUD } from "../ui/hud.js";
 import { speak, stopSpeaking } from "../core/audio.js";
 import { realmById } from "../data/realms.js";
-import { realmArt } from "../data/scenes.js";
+import { realmArt, CHAR } from "../data/scenes.js";
 import { shade } from "../ui/art.js";
 import { go } from "../core/router.js";
 
@@ -32,7 +32,10 @@ export function render({ realmId }) {
     el("h2.h2", { text: r.name }),
     hero,
     el("div.panel", { style: { maxWidth: "720px", margin: "0 auto" } }, [
-      el("div.h3", { text: "🌳 The Keeper" }),
+      el("div.row", { style: { gap: "8px", alignItems: "center", justifyContent: "center" } }, [
+        imgEl(CHAR.keeper_portrait, { style: { height: "40px", width: "40px", objectFit: "cover", borderRadius: "50%" }, fallback: el("span", { text: "🌳" }) }),
+        el("div.h3", { text: "The Keeper" }),
+      ]),
       el("p", { style: { marginTop: "4px" }, text: intro }),
     ]),
     el("div.row.center", { style: { marginTop: "8px" } }, [

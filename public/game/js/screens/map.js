@@ -4,6 +4,8 @@ import { showHUD } from "../ui/hud.js";
 import { state } from "../core/state.js";
 import { REALMS } from "../data/realms.js";
 import { shade } from "../ui/art.js";
+import { REALM_BG } from "../data/scenes.js";
+import { preload } from "../ui/components.js";
 import { go, back } from "../core/router.js";
 
 export function render() {
@@ -18,8 +20,15 @@ export function render() {
     const state_ = done ? "💎" : unlocked ? r.id : "🔒";
     const tag = done ? "Restored ✓ · replay" : unlocked ? (current ? "Today's Realm — tap!" : "Tap to enter") : "Locked";
 
+    // realm artwork as the card image, with a dark gradient over it for text readability
+    const bgUrl = REALM_BG[r.id];
+    const overlay = "linear-gradient(180deg, rgba(10,8,26,.15), rgba(10,8,26,.72))";
     const card = el("button.realm-card" + (unlocked ? "" : ".locked"), {
-      style: { background: `linear-gradient(160deg, ${r.color}, ${shade(r.color, -28)})`, boxShadow: current ? "0 0 0 3px var(--gold), var(--shadow-lift)" : "" },
+      style: {
+        backgroundImage: bgUrl ? `${overlay}, url("${bgUrl}")` : `linear-gradient(160deg, ${r.color}, ${shade(r.color, -28)})`,
+        backgroundSize: "cover", backgroundPosition: "center",
+        boxShadow: current ? "0 0 0 3px var(--gold), var(--shadow-lift)" : "",
+      },
       "aria-label": `${r.name}. ${r.skillLabel}. ${tag}`,
     }, [
       el("div.rstate", { text: String(state_) }),
@@ -47,4 +56,4 @@ export function render() {
     ]),
   ]);
 }
-export function onMount() { autoSpeak("Choose a Realm to restore."); }
+export function onMount() { autoSpeak("Choose a Realm to restore."); preload(Object.values(REALM_BG)); }

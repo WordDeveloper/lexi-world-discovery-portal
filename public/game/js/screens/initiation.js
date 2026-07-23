@@ -11,7 +11,11 @@ import { state, save } from "../core/state.js";
 import { createInitiation, ARRIVAL_CHECKS } from "../systems/placement.js";
 import { realmById } from "../data/realms.js";
 import { storylingArt } from "../ui/art.js";
+import { imgEl } from "../core/images.js";
+import { storylingImg } from "../data/scenes.js";
 import { go } from "../core/router.js";
+
+const comp = (species, size) => imgEl(storylingImg(0), { style: { height: size + "px" }, fallback: storylingArt(species, 0, size) });
 
 let runner, phase, arrivalIdx, itemsSinceBreak;
 
@@ -36,7 +40,7 @@ function head(host, title, subtitle) {
 
 function paintIntro(host) {
   head(host, "Your first quest", "Lexi will ask you some things so we can find the perfect place to begin your adventure. It is not a test — just do your best!");
-  host.appendChild(el("div", { style: { textAlign: "center", margin: "14px 0" } }, [storylingArt(state.profile.storyling.species, 0, 110)]));
+  host.appendChild(el("div", { style: { textAlign: "center", margin: "14px 0" } }, [comp(state.profile.storyling.species, 130)]));
   host.appendChild(button("Let's begin", () => { phase = "arrival"; paintArrival(host); }, { size: "lg", block: true }));
   autoSpeak("Let's find where your adventure begins. It is not a test.");
 }
@@ -103,7 +107,7 @@ function paintProbe(host) {
 /* ---------- Encouraging break (no teaching/answers) ---------- */
 function paintBreak(host) {
   head(host, "Nice work — quick break!", "Tap to give your Storyling a happy wiggle, then keep going.");
-  const s = el("div.center", { style: { margin: "14px 0", cursor: "pointer" } }, [storylingArt(state.profile.storyling.species, 0, 120)]);
+  const s = el("div.center", { style: { margin: "14px 0", cursor: "pointer" } }, [comp(state.profile.storyling.species, 140)]);
   s.addEventListener("click", () => { s.firstChild.animate([{ transform: "rotate(-8deg)" }, { transform: "rotate(8deg)" }, { transform: "none" }], { duration: 400 }); sfx.open(); });
   host.appendChild(s);
   host.appendChild(button("Keep going", () => paintProbe(host), { size: "lg", block: true }));
@@ -123,7 +127,7 @@ function finishInitiation(host) {
 
   const realm = realmById(res.placedRealm);
   head(host, "Your adventure begins!", null);
-  host.appendChild(el("div.center", { style: { margin: "10px 0" } }, [storylingArt(p.storyling.species, 0, 120)]));
+  host.appendChild(el("div.center", { style: { margin: "10px 0" } }, [comp(p.storyling.species, 140)]));
   host.appendChild(el("p.lead.center", { html: `Lexi has found your starting Realm:<br><b style="color:var(--accent)">${realm.name}</b>` }));
   host.appendChild(el("p.muted.center", { text: `Today you'll practise: ${realm.skillLabel}.` }));
   host.appendChild(el("div", { style: { height: "14px" } }));
