@@ -131,7 +131,7 @@ function update() {
     if (d < 3) player.moving = false; else { const sp = Math.min(player.spd, d); player.x += dx / d * sp; player.y += dy / d * sp; if (Math.abs(dx) > .5) player.face = dx > 0 ? 1 : -1; moved = true; }
   }
   player.x = Math.max(16, Math.min(W - 16, player.x)); player.y = Math.max(horizon + 24, Math.min(H - 14, player.y));
-  player.walk += moved ? 0.28 : 0; player._moving = moved;
+  player.walk += moved ? 0.34 : 0; player._moving = moved;
   // storyling follows
   const sdx = player.x - 26 * player.face - storyling.x, sdy = player.y + 6 - storyling.y, sd = Math.hypot(sdx, sdy);
   if (sd > 4) { storyling.x += sdx * 0.12; storyling.y += sdy * 0.12; }
@@ -245,12 +245,18 @@ function drawCleared(n) { ctx.save(); ctx.font = "26px serif"; ctx.textAlign = "
 function drawGate(now) { const e = window._end, x = e.x, y = e.y, bob = Math.sin(now * 2) * 5; ctx.save(); for (let i = 0; i < 8; i++) { const a = now * 1.5 + i * Math.PI / 4, rr = 22 + Math.sin(now * 3 + i) * 6; ctx.globalAlpha = .6; ctx.fillStyle = "#ffd6f2"; ctx.beginPath(); ctx.arc(x + Math.cos(a) * rr, y - 24 + Math.sin(a) * rr, 2.4, 0, 7); ctx.fill(); } ctx.globalAlpha = 1; ctx.font = "30px serif"; ctx.textAlign = "center"; ctx.fillText("💎", x, y - 16 - bob); ctx.restore(); }
 function drawStoryling(now) {
   const it = state.profile.storyling; const col = { spark: "#7bbf5a", lumi: "#f0a24a", nixie: "#6db6e8", pip: "#b48be0" }[it.species] || "#7bbf5a";
-  const bob = Math.sin(now * 4) * 2, x = storyling.x, y = storyling.y;
+  // hops higher and faster when the pair is on the move
+  const mv = player && player._moving;
+  const hop = mv ? Math.abs(Math.sin(player.walk * 1.15)) * 8 : Math.sin(now * 4) * 2;
+  const bob = hop, x = storyling.x, y = storyling.y;
   const simg = getImage(storylingImg(it.stage));
   if (simg) {
     const h = 62 * depth(y), iw = simg.width * (h / simg.height);
-    ctx.save(); ctx.beginPath(); ctx.ellipse(x, y + 6, iw * .35, 4, 0, 0, 7); ctx.fillStyle = "rgba(0,0,0,.18)"; ctx.fill();
-    ctx.drawImage(simg, x - iw / 2, y - h - bob, iw, h); ctx.restore();
+    const sq = mv ? 1 + Math.sin(player.walk * 1.15) * 0.06 : 1;   // little squash on landing
+    ctx.save();
+    ctx.beginPath(); ctx.ellipse(x, y + 6, iw * .35 * (mv ? 1 - hop / 40 : 1), 4, 0, 0, 7); ctx.fillStyle = "rgba(0,0,0,.18)"; ctx.fill();
+    ctx.translate(x, y - bob); ctx.scale(1, sq);
+    ctx.drawImage(simg, -iw / 2, -h, iw, h); ctx.restore();
     return;
   }
   ctx.save(); ctx.beginPath(); ctx.ellipse(x, y + 8, 10, 3, 0, 0, 7); ctx.fillStyle = "rgba(0,0,0,.15)"; ctx.fill();
@@ -263,9 +269,26 @@ function drawPlayer(now) {
   const gimg = getImage(CHAR.guardian_idle);
   if (gimg) {
     const h = 120 * (depth(y) * .95), iw = gimg.width * (h / gimg.height);
+    // ---- procedural walk cycle on a single sprite ----
+    // Two bounces per stride + weight-shift rock + squash/stretch + forward lean.
+    const step = Math.sin(w);              // -1..1  (one full stride)
+    const bounce = Math.abs(Math.sin(w));  // 0..1   (two footfalls per stride)
+    const vBob = mv ? bounce * (h * 0.065) : Math.sin(now * 2) * (h * 0.012);   // vertical hop / breathing
+    const rock = mv ? step * 0.07 : Math.sin(now * 1.6) * 0.015;                 // side-to-side weight shift (rad)
+    const lean = mv ? 0.05 : 0;                                                  // forward lean into the walk
+    const sq = mv ? Math.sin(w * 2) * 0.05 : Math.sin(now * 2) * 0.008;          // squash & stretch amount
+    const squashY = 1 - sq, squashX = 1 + sq;                                    // contact = squash, apex = stretch
+    const lift = mv ? bounce : 0;                                                // how high off the ground (0..1)
+    const shSc = 1 - lift * 0.18;                                                // shadow shrinks as the hero lifts
     ctx.save();
-    ctx.beginPath(); ctx.ellipse(x, y + 2, iw * .35, 6, 0, 0, 7); ctx.fillStyle = "rgba(0,0,0,.22)"; ctx.fill();
-    ctx.translate(x, y - bob); ctx.scale(player.face, 1);
+    // reactive contact shadow (tighter + lighter mid-stride)
+    ctx.beginPath(); ctx.ellipse(x, y + 2, iw * 0.36 * shSc, 6.5 * shSc, 0, 0, 7);
+    ctx.fillStyle = `rgba(0,0,0,${0.24 * shSc})`; ctx.fill();
+    // pivot everything at the feet so rock/squash read naturally
+    ctx.translate(x, y - vBob);
+    ctx.scale(player.face, 1);
+    ctx.rotate(rock + lean);
+    ctx.scale(squashX, squashY);
     ctx.drawImage(gimg, -iw / 2, -h, iw, h);
     ctx.restore();
     ctx.save(); ctx.fillStyle = "rgba(46,41,90,.92)"; ctx.font = "bold 13px Baloo 2, sans-serif"; ctx.textAlign = "center"; ctx.fillText(state.profile.name, x, y + 18); ctx.restore();
