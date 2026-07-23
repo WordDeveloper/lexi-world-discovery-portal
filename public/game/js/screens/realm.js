@@ -224,11 +224,31 @@ function drawSun(now) {
 }
 function drawHills() { [{ c: shade(th.g1, 30), o: horizon - 8 }, { c: shade(th.g1, 12), o: horizon + 10 }].forEach((L, li) => { ctx.fillStyle = L.c; ctx.beginPath(); ctx.moveTo(0, H); for (let x = 0; x <= W; x += 20) ctx.lineTo(x, L.o + Math.sin(x / 160 + li * 2) * 16); ctx.lineTo(W, H); ctx.closePath(); ctx.fill(); }); }
 function drawPath() {
+  // A soft luminous trail that blends INTO the painted ground instead of
+  // sitting on top like a pasted road. "soft-light" lets the underlying
+  // texture show through; a faint glow keeps the route readable; animated
+  // guide-dashes read as a gentle magical trail.
+  const t = performance.now() / 1000;
   ctx.save(); ctx.lineCap = "round"; ctx.lineJoin = "round";
-  const stroke = () => { ctx.beginPath(); pathPts.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)); ctx.stroke(); };
-  ctx.strokeStyle = "rgba(120,90,50,.3)"; ctx.lineWidth = 40; stroke();
-  ctx.strokeStyle = "#e7cd94"; ctx.lineWidth = 28; stroke();
-  ctx.setLineDash([10, 16]); ctx.strokeStyle = "rgba(255,255,255,.4)"; ctx.lineWidth = 3; stroke(); ctx.setLineDash([]);
+  const trace = (w) => { ctx.lineWidth = w; ctx.beginPath(); pathPts.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)); ctx.stroke(); };
+
+  // 1) warm trail that blends with the ground painting (feathered via shadow)
+  ctx.globalCompositeOperation = "soft-light";
+  ctx.shadowColor = "rgba(255,236,194,.6)"; ctx.shadowBlur = 22;
+  ctx.strokeStyle = "rgba(255,235,193,.85)"; trace(34);
+  ctx.strokeStyle = "rgba(255,235,193,.85)"; trace(20);   // build up the centre a touch
+
+  // 2) faint luminous core so the way stays visible on busy artwork
+  ctx.globalCompositeOperation = "lighter";
+  ctx.shadowColor = "rgba(255,244,214,.5)"; ctx.shadowBlur = 14;
+  ctx.strokeStyle = "rgba(255,246,220,.10)"; trace(16);
+
+  // 3) gentle flowing guide-dashes (animated), softly translucent
+  ctx.globalCompositeOperation = "source-over";
+  ctx.shadowBlur = 0;
+  ctx.setLineDash([5, 22]); ctx.lineDashOffset = -t * 26;
+  ctx.strokeStyle = "rgba(255,255,255,.30)"; trace(3);
+  ctx.setLineDash([]);
   ctx.restore();
 }
 function drawMarker(m) { const age = (performance.now() - m.t) / 1400, r = 8 + age * 26; ctx.save(); ctx.globalAlpha = (1 - age) * .8; ctx.strokeStyle = "#fff"; ctx.lineWidth = 3; ctx.beginPath(); ctx.ellipse(m.x, m.y, r, r * .5, 0, 0, 7); ctx.stroke(); ctx.restore(); }
