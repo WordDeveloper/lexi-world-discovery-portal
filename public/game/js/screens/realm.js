@@ -21,6 +21,7 @@ import { go } from "../core/router.js";
 let cv, ctx, W, H, horizon, raf, running;
 let realm, th, player, storyling, nodes, pathPts, activeNode, cleared, keys, markers;
 let bgNatural = null;   // natural {w,h} of the loaded realm background (for path mapping)
+let arc = [], totalLen = 0;   // cumulative arc-length of pathPts (for on-rail movement)
 
 // perspective scale: things lower on screen (closer) are larger
 function depth(y) { return Math.max(0.62, Math.min(1.3, 0.66 + 0.6 * ((y - horizon) / (H - horizon)))); }
@@ -102,7 +103,7 @@ function buildLevel() {
   nodes = items.map((item, i) => ({ x: 0, y: 0, idx: i, item, done: !!rp.nodes[i] }));
   placeNodes();
   cleared = nodes.filter((n) => n.done).length;
-  player = { x: pathPts[0].x, y: pathPts[0].y, tx: pathPts[0].x, ty: pathPts[0].y, moving: false, face: 1, walk: 0, spd: 3.6 };
+  player = { x: pathPts[0].x, y: pathPts[0].y, dist: 0, tdist: 0, moving: false, face: 1, walk: 0, spd: 4.2 };
   storyling = { x: player.x - 30, y: player.y };
 }
 // Called after the background's real size is known: re-lay the route on the
@@ -114,11 +115,12 @@ function retracePath() {
   layout();
   if (nodes) placeNodes();
   if (player && wasAtStart) {
-    player.x = player.tx = pathPts[0].x; player.y = player.ty = pathPts[0].y; player.moving = false;
-    storyling.x = player.x - 30; storyling.y = player.y;
+    player.dist = 0; player.tdist = 0; player.moving = false; syncActorPos();
   }
 }
 function layout() {
+  // keep the hero's progress along the route stable across resizes
+  const u = (player && totalLen) ? player.dist / totalLen : 0;
   const wp = REALM_PATHS[realm.id], cf = coverFit();
   if (wp && cf) {
     // map the traced painted-road waypoints into current canvas space
@@ -131,6 +133,30 @@ function layout() {
     pathPts = catmull([start, c0, c1, c2, end], 22);
     window._end = end;
   }
+  buildArc();
+  if (player && totalLen) { player.dist = u * totalLen; player.tdist = player.dist; syncActorPos(); }
+}
+/* ---- on-rail helpers: the hero rides ALONG the painted route ---- */
+function buildArc() {
+  arc = [0];
+  for (let i = 1; i < pathPts.length; i++) arc[i] = arc[i - 1] + Math.hypot(pathPts[i].x - pathPts[i - 1].x, pathPts[i].y - pathPts[i - 1].y);
+  totalLen = arc[arc.length - 1] || 0;
+}
+function posAt(d) {
+  d = Math.max(0, Math.min(totalLen, d));
+  let i = 1; while (i < arc.length && arc[i] < d) i++;
+  const p0 = pathPts[i - 1], p1 = pathPts[i] || p0, a = arc[i - 1], b = arc[i] != null ? arc[i] : a;
+  const f = b > a ? (d - a) / (b - a) : 0;
+  return { x: p0.x + (p1.x - p0.x) * f, y: p0.y + (p1.y - p0.y) * f, dx: p1.x - p0.x, dy: p1.y - p0.y };
+}
+function distNearest(px, py) {   // arc-distance of the path point closest to (px,py)
+  let best = 0, bd = Infinity;
+  for (let i = 0; i < pathPts.length; i++) { const dx = pathPts[i].x - px, dy = pathPts[i].y - py, dd = dx * dx + dy * dy; if (dd < bd) { bd = dd; best = arc[i]; } }
+  return best;
+}
+function syncActorPos() {
+  const p = posAt(player.dist); player.x = p.x; player.y = p.y;
+  const s = posAt(Math.max(0, player.dist - 34)); storyling.x = s.x; storyling.y = s.y;
 }
 function placeNodes() {
   // spread nodes along the path (excluding the very ends)
@@ -148,10 +174,11 @@ function onTap(e) {
   const r = cv.getBoundingClientRect();
   const x = (e.clientX - r.left) * (W / r.width), y = (e.clientY - r.top) * (H / r.height);
   if (y < 60) return;
-  player.tx = Math.max(16, Math.min(W - 16, x));
-  player.ty = Math.max(horizon + 24, Math.min(H - 14, y));
+  // tap moves the hero ALONG the painted route to the nearest point on it
+  player.tdist = distNearest(x, y);
   player.moving = true;
-  markers.push({ x: player.tx, y: player.ty, t: performance.now() });
+  const m = posAt(player.tdist);
+  markers.push({ x: m.x, y: m.y, t: performance.now() });
 }
 function onKey(e) { const k = { ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right" }[e.key]; if (k) { keys[k] = true; e.preventDefault(); } }
 function onKeyUp(e) { const k = { ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right" }[e.key]; if (k) keys[k] = false; }
@@ -166,25 +193,30 @@ function buildDpad() {
 function loop() { if (!running) return; update(); draw(); raf = requestAnimationFrame(loop); }
 function update() {
   if (activeNode) return; // locked while an activity is open (bug-fix guard)
-  let moved = false;
-  const uk = keys.up || keys.down || keys.left || keys.right;
-  if (uk) {
-    let dx = 0, dy = 0; if (keys.up) dy--; if (keys.down) dy++; if (keys.left) dx--; if (keys.right) dx++;
-    if (dx || dy) { const m = Math.hypot(dx, dy); player.x += dx / m * player.spd; player.y += dy / m * player.spd; if (dx) player.face = dx > 0 ? 1 : -1; moved = true; }
-    player.tx = player.x; player.ty = player.y;
+  let moved = false, dir = 0;
+  // forward = further along the painted route (up/right), back = down/left
+  if (keys.up || keys.right) dir += 1;
+  if (keys.down || keys.left) dir -= 1;
+  if (dir) {
+    player.dist = Math.max(0, Math.min(totalLen, player.dist + dir * player.spd));
+    player.tdist = player.dist; moved = true;
   } else if (player.moving) {
-    const dx = player.tx - player.x, dy = player.ty - player.y, d = Math.hypot(dx, dy);
-    if (d < 3) player.moving = false; else { const sp = Math.min(player.spd, d); player.x += dx / d * sp; player.y += dy / d * sp; if (Math.abs(dx) > .5) player.face = dx > 0 ? 1 : -1; moved = true; }
+    const dd = player.tdist - player.dist;
+    if (Math.abs(dd) < 2) { player.moving = false; }
+    else { player.dist += Math.sign(dd) * Math.min(player.spd, Math.abs(dd)); moved = true; dir = Math.sign(dd); }
   }
-  player.x = Math.max(16, Math.min(W - 16, player.x)); player.y = Math.max(horizon + 24, Math.min(H - 14, player.y));
+  const pos = posAt(player.dist);
+  player.x = pos.x; player.y = pos.y;
+  // face along direction of travel (path tangent, flipped when walking backward)
+  if (moved && Math.abs(pos.dx) > 0.2) player.face = (pos.dx > 0 ? 1 : -1) * (dir < 0 ? -1 : 1);
   player.walk += moved ? 0.34 : 0; player._moving = moved;
-  // storyling follows
-  const sdx = player.x - 26 * player.face - storyling.x, sdy = player.y + 6 - storyling.y, sd = Math.hypot(sdx, sdy);
-  if (sd > 4) { storyling.x += sdx * 0.12; storyling.y += sdy * 0.12; }
+  // storyling trails just behind the hero, on the same route
+  const sp = posAt(Math.max(0, player.dist - 34));
+  storyling.x += (sp.x - storyling.x) * 0.2; storyling.y += (sp.y - storyling.y) * 0.2;
   // node proximity
   for (const nd of nodes) { if (nd.done) continue; if (Math.hypot(player.x - nd.x, player.y - nd.y) < 36) { player.moving = false; openNode(nd); return; } }
-  // boss gateway when all cleared
-  if (cleared >= nodes.length) { const e = window._end; if (Math.hypot(player.x - e.x, player.y - e.y) < 44) { player.moving = false; startMasteryCheck(); return; } }
+  // boss gateway when all cleared — reached by walking to the end of the route
+  if (cleared >= nodes.length && player.dist > totalLen - 24) { player.moving = false; startMasteryCheck(); return; }
   markers = markers.filter((m) => performance.now() - m.t < 1400);
 }
 
