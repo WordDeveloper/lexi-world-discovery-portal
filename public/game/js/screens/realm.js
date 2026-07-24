@@ -20,9 +20,29 @@ import { go } from "../core/router.js";
 
 let cv, ctx, W, H, horizon, raf, running;
 let realm, th, player, storyling, nodes, pathPts, activeNode, cleared, keys, markers;
+let bgNatural = null;   // natural {w,h} of the loaded realm background (for path mapping)
 
 // perspective scale: things lower on screen (closer) are larger
 function depth(y) { return Math.max(0.62, Math.min(1.3, 0.66 + 0.6 * ((y - horizon) / (H - horizon)))); }
+
+/* Per-realm walkable route TRACED onto each background painting, in
+   image-normalised [0..1] coordinates (ordered foreground -> distance).
+   The character follows THIS so it walks the real painted road / bridge.
+   Realms without an entry fall back to a generic curve. */
+const REALM_PATHS = {
+  1: [[0.56, 0.96], [0.52, 0.86], [0.50, 0.77], [0.47, 0.68], [0.47, 0.61]],                              // forest glade -> central tree
+  2: [[0.50, 0.95], [0.475, 0.85], [0.465, 0.75], [0.465, 0.65], [0.47, 0.575]],                          // cavern rock ledge -> passage
+  3: [[0.50, 0.90], [0.47, 0.78], [0.47, 0.67], [0.51, 0.575], [0.56, 0.515], [0.62, 0.475], [0.66, 0.44]], // village -> STONE BRIDGE -> far bank
+  4: [[0.50, 0.95], [0.48, 0.85], [0.50, 0.75], [0.50, 0.66], [0.50, 0.60]],                              // woods leaf trail into the mist
+  5: [[0.22, 0.97], [0.17, 0.74], [0.20, 0.60], [0.27, 0.51], [0.37, 0.46], [0.45, 0.435], [0.53, 0.43], [0.60, 0.45]], // slime trail -> ROPE BRIDGE -> far bank
+};
+// cover-fit transform for the current background (same math as draw())
+function coverFit() {
+  if (!bgNatural) return null;
+  const s = Math.max(W / bgNatural.w, H / bgNatural.h);
+  const dw = bgNatural.w * s, dh = bgNatural.h * s;
+  return { dw, dh, ox: (W - dw) / 2, oy: (H - dh) / 2 };
+}
 
 export function render({ realmId }) {
   realm = realmById(realmId);
@@ -42,8 +62,13 @@ export function render({ realmId }) {
 }
 
 export function onMount(scr, { realmId }) {
-  keys = {}; markers = []; activeNode = null; cleared = 0;
-  loadImage(REALM_BG[realm.id]); loadImage(CHAR.guardian_idle); loadImage(storylingImg(state.profile.storyling.stage));
+  keys = {}; markers = []; activeNode = null; cleared = 0; bgNatural = null;
+  // once the background is decoded we know its real size -> re-trace the path
+  // onto the painted road and snap the hero to its start.
+  loadImage(REALM_BG[realm.id]).then((img) => {
+    if (img && img.width) { bgNatural = { w: img.width, h: img.height }; retracePath(); }
+  }).catch(() => {});
+  loadImage(CHAR.guardian_idle); loadImage(storylingImg(state.profile.storyling.stage));
   resize();
   buildLevel();
   startAmbient();
@@ -80,11 +105,32 @@ function buildLevel() {
   player = { x: pathPts[0].x, y: pathPts[0].y, tx: pathPts[0].x, ty: pathPts[0].y, moving: false, face: 1, walk: 0, spd: 3.6 };
   storyling = { x: player.x - 30, y: player.y };
 }
+// Called after the background's real size is known: re-lay the route on the
+// painted road, re-place nodes, and (if still parked at the start) snap the
+// hero + companion onto the new starting point.
+function retracePath() {
+  if (!pathPts) return;
+  const wasAtStart = player && !player.moving && cleared < (nodes ? nodes.length : 1);
+  layout();
+  if (nodes) placeNodes();
+  if (player && wasAtStart) {
+    player.x = player.tx = pathPts[0].x; player.y = player.ty = pathPts[0].y; player.moving = false;
+    storyling.x = player.x - 30; storyling.y = player.y;
+  }
+}
 function layout() {
-  const start = { x: W * 0.5, y: H - 70 }, c0 = { x: W * 0.3, y: H * 0.72 }, c1 = { x: W * 0.72, y: H * 0.58 },
-    c2 = { x: W * 0.36, y: horizon + (H - horizon) * 0.24 }, end = { x: W * 0.6, y: horizon + (H - horizon) * 0.08 };
-  pathPts = catmull([start, c0, c1, c2, end], 22);
-  window._end = end;
+  const wp = REALM_PATHS[realm.id], cf = coverFit();
+  if (wp && cf) {
+    // map the traced painted-road waypoints into current canvas space
+    const pts = wp.map(([nx, ny]) => ({ x: cf.ox + nx * cf.dw, y: cf.oy + ny * cf.dh }));
+    pathPts = catmull(pts, 22);
+    window._end = pts[pts.length - 1];
+  } else {
+    const start = { x: W * 0.5, y: H - 70 }, c0 = { x: W * 0.3, y: H * 0.72 }, c1 = { x: W * 0.72, y: H * 0.58 },
+      c2 = { x: W * 0.36, y: horizon + (H - horizon) * 0.24 }, end = { x: W * 0.6, y: horizon + (H - horizon) * 0.08 };
+    pathPts = catmull([start, c0, c1, c2, end], 22);
+    window._end = end;
+  }
 }
 function placeNodes() {
   // spread nodes along the path (excluding the very ends)
@@ -229,26 +275,33 @@ function drawPath() {
   // texture show through; a faint glow keeps the route readable; animated
   // guide-dashes read as a gentle magical trail.
   const t = performance.now() / 1000;
+  const onPainted = !!(REALM_PATHS[realm.id] && bgNatural);   // route sits on the real painted road?
   ctx.save(); ctx.lineCap = "round"; ctx.lineJoin = "round";
   const trace = (w) => { ctx.lineWidth = w; ctx.beginPath(); pathPts.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)); ctx.stroke(); };
 
-  // 1) warm trail that blends with the ground painting (feathered via shadow)
-  ctx.globalCompositeOperation = "soft-light";
-  ctx.shadowColor = "rgba(255,236,194,.6)"; ctx.shadowBlur = 22;
-  ctx.strokeStyle = "rgba(255,235,193,.85)"; trace(34);
-  ctx.strokeStyle = "rgba(255,235,193,.85)"; trace(20);   // build up the centre a touch
-
-  // 2) faint luminous core so the way stays visible on busy artwork
-  ctx.globalCompositeOperation = "lighter";
-  ctx.shadowColor = "rgba(255,244,214,.5)"; ctx.shadowBlur = 14;
-  ctx.strokeStyle = "rgba(255,246,220,.10)"; trace(16);
-
-  // 3) gentle flowing guide-dashes (animated), softly translucent
-  ctx.globalCompositeOperation = "source-over";
-  ctx.shadowBlur = 0;
-  ctx.setLineDash([5, 22]); ctx.lineDashOffset = -t * 26;
-  ctx.strokeStyle = "rgba(255,255,255,.30)"; trace(3);
-  ctx.setLineDash([]);
+  if (onPainted) {
+    // Very subtle shimmer only — the real road is already painted, so we just
+    // hint the walkable line with a faint glow + gentle flowing dashes.
+    ctx.globalCompositeOperation = "soft-light";
+    ctx.shadowColor = "rgba(255,240,205,.45)"; ctx.shadowBlur = 14;
+    ctx.strokeStyle = "rgba(255,238,200,.35)"; trace(16);
+    ctx.globalCompositeOperation = "source-over"; ctx.shadowBlur = 0;
+    ctx.setLineDash([4, 20]); ctx.lineDashOffset = -t * 24;
+    ctx.strokeStyle = "rgba(255,255,255,.22)"; trace(2.5);
+    ctx.setLineDash([]);
+  } else {
+    // Fallback (generic curve, no painted road): keep a fuller luminous trail.
+    ctx.globalCompositeOperation = "soft-light";
+    ctx.shadowColor = "rgba(255,236,194,.6)"; ctx.shadowBlur = 22;
+    ctx.strokeStyle = "rgba(255,235,193,.85)"; trace(34); trace(20);
+    ctx.globalCompositeOperation = "lighter";
+    ctx.shadowColor = "rgba(255,244,214,.5)"; ctx.shadowBlur = 14;
+    ctx.strokeStyle = "rgba(255,246,220,.10)"; trace(16);
+    ctx.globalCompositeOperation = "source-over"; ctx.shadowBlur = 0;
+    ctx.setLineDash([5, 22]); ctx.lineDashOffset = -t * 26;
+    ctx.strokeStyle = "rgba(255,255,255,.30)"; trace(3);
+    ctx.setLineDash([]);
+  }
   ctx.restore();
 }
 function drawMarker(m) { const age = (performance.now() - m.t) / 1400, r = 8 + age * 26; ctx.save(); ctx.globalAlpha = (1 - age) * .8; ctx.strokeStyle = "#fff"; ctx.lineWidth = 3; ctx.beginPath(); ctx.ellipse(m.x, m.y, r, r * .5, 0, 0, 7); ctx.stroke(); ctx.restore(); }
